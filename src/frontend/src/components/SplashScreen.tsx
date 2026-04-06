@@ -52,7 +52,12 @@ export default function SplashScreen() {
             className="absolute inset-1 rounded-full"
             style={{ backgroundColor: "#0B0C10" }}
           />
-          <span className="relative z-10 text-4xl">🌐</span>
+          <img
+            src="/assets/generated/socialverse-logo-transparent.dim_512x512.png"
+            alt="SocialVerse"
+            className="relative z-10 w-16 h-16 object-contain"
+            style={{ filter: "drop-shadow(0 0 20px rgba(122, 92, 255, 0.8))" }}
+          />
         </div>
 
         {/* Brand name */}

@@ -1,6 +1,7 @@
 import {
   Bell,
   Bookmark,
+  Download,
   Heart,
   MessageCircle,
   MessageSquare,
@@ -106,6 +107,21 @@ const MOCK_POSTS = [
     saved: false,
   },
 ];
+
+const handleDownload = async (url: string, filename: string) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
+};
 
 export default function HomePage() {
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
@@ -308,6 +324,16 @@ export default function HomePage() {
 
               <button type="button" data-ocid={`home.feed.share.${idx + 1}`}>
                 <Share2 className="w-6 h-6 text-white/70" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleDownload(post.image, `post-${post.id}.jpg`)
+                }
+                data-ocid={`home.feed.download.${idx + 1}`}
+              >
+                <Download className="w-6 h-6 text-white/70" />
               </button>
 
               <button

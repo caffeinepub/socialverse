@@ -2,6 +2,7 @@ import {
   Bookmark,
   ChevronDown,
   ChevronUp,
+  Download,
   Heart,
   MessageCircle,
   Music,
@@ -89,6 +90,21 @@ const MOCK_REELS = [
     views: "6.2M",
   },
 ];
+
+const handleDownload = async (url: string, filename: string) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
+};
 
 export default function ReelsPage() {
   const [currentReel, setCurrentReel] = useState(0);
@@ -271,6 +287,21 @@ export default function ReelsPage() {
                 fill: savedReels.has(reel.id) ? "#7A5CFF" : "transparent",
               }}
             />
+          </div>
+          <span className="text-white text-xs">Save</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleDownload(reel.image, `reel-${reel.id}.jpg`)}
+          className="flex flex-col items-center gap-1"
+          data-ocid="reels.download.button"
+        >
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.1)" }}
+          >
+            <Download className="w-6 h-6 text-white" />
           </div>
           <span className="text-white text-xs">Save</span>
         </button>
