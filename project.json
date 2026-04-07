@@ -1,0 +1,25 @@
+{
+  "overview": "SocialVerse is a social media super app combining Instagram, YouTube, Netflix, and WhatsApp features. Users can sign up with real accounts, upload photos and videos that all users can see, like and comment on posts, chat with each other, and follow their favorite creators — all backed by a real persistent backend.",
+  "features": [
+    "Real login and account creation with persistent user profiles",
+    "Photo and video uploads visible to all users in the feed",
+    "Instagram-style home feed with likes, comments, and follows",
+    "Vertical Reels video player with real uploaded content",
+    "WhatsApp-style real-time chat with message persistence",
+    "Explore page with trending content and top creators",
+    "User profiles with follower/following counts and post grids",
+    "Full PWA installable on phone home screen"
+  ],
+  "category": "social-media",
+  "tags": [
+    "social-media",
+    "instagram",
+    "chat",
+    "video",
+    "upload",
+    "feed",
+    "reels",
+    "messaging"
+  ],
+  "last_updated": "2026-04-07T17:59:54.647Z"
+}

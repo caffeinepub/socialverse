@@ -1,9 +1,11 @@
+import { useInternetIdentity } from "@caffeineai/core-infrastructure";
 import { useEffect, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import SplashScreen from "./components/SplashScreen";
 import UploadModal from "./components/UploadModal";
-import { useInternetIdentity } from "./hooks/useInternetIdentity";
-import AuthPage from "./pages/AuthPage";
+import { UserProvider } from "./context/UserContext";
+import { useUserProfile } from "./hooks/useUserProfile";
+import AuthPage, { ProfileSetupScreen } from "./pages/AuthPage";
 import ChatPage from "./pages/ChatPage";
 import ExplorePage from "./pages/ExplorePage";
 import HomePage from "./pages/HomePage";
@@ -12,12 +14,16 @@ import ReelsPage from "./pages/ReelsPage";
 
 type Page = "home" | "reels" | "explore" | "chat" | "profile";
 
-export default function App() {
+function AppContent() {
   const { identity, isInitializing } = useInternetIdentity();
+  const { profile, isLoadingProfile, refetchProfile } = useUserProfile();
   const [showSplash, setShowSplash] = useState(true);
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [showUpload, setShowUpload] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<
+    | (Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> })
+    | null
+  >(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   useEffect(() => {
@@ -28,7 +34,12 @@ export default function App() {
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
-      setInstallPrompt(e);
+      setInstallPrompt(
+        e as Event & {
+          prompt: () => void;
+          userChoice: Promise<{ outcome: string }>;
+        },
+      );
       const dismissed = sessionStorage.getItem("pwa-install-dismissed");
       if (!dismissed) setShowInstallBanner(true);
     };
@@ -55,6 +66,22 @@ export default function App() {
 
   if (!identity) {
     return <AuthPage />;
+  }
+
+  // Show loading screen while checking if profile exists
+  if (isLoadingProfile) {
+    return <SplashScreen />;
+  }
+
+  // Profile doesn't exist yet — show profile setup
+  if (profile === null) {
+    return (
+      <ProfileSetupScreen
+        onComplete={() => {
+          refetchProfile();
+        }}
+      />
+    );
   }
 
   const renderPage = () => {
@@ -133,5 +160,13 @@ export default function App() {
 
       <UploadModal open={showUpload} onClose={() => setShowUpload(false)} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <UserProvider>
+      <AppContent />
+    </UserProvider>
   );
 }

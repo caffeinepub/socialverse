@@ -1,0 +1,128 @@
+type _ImmutableObjectStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   avatarMediaId: opt ExternalBlob;
+   bio: text;
+   createdAt: Timestamp;
+   displayName: text;
+   followerCount: nat;
+   followingCount: nat;
+   id: UserId;
+   postCount: nat;
+   username: text;
+ };
+type UserId = principal;
+type Timestamp = int;
+type PostId = text;
+type Post = 
+ record {
+   authorId: UserId;
+   authorUsername: text;
+   caption: text;
+   commentCount: nat;
+   createdAt: Timestamp;
+   id: PostId;
+   likeCount: nat;
+   mediaId: ExternalBlob;
+   mediaType: MediaType;
+ };
+type PaginationResult = 
+ record {
+   hasMore: bool;
+   items: vec Post;
+   nextOffset: nat;
+ };
+type MessageId = text;
+type Message = 
+ record {
+   content: text;
+   conversationId: ConversationId;
+   createdAt: Timestamp;
+   id: MessageId;
+   senderId: UserId;
+   senderUsername: text;
+ };
+type MediaType = 
+ variant {
+   photo;
+   video;
+ };
+type ExternalBlob = blob;
+type ConversationId = text;
+type Conversation = 
+ record {
+   id: ConversationId;
+   lastMessage: opt text;
+   lastMessageAt: Timestamp;
+   participants: vec UserId;
+   unreadCount: nat;
+ };
+type CommentId = text;
+type Comment = 
+ record {
+   authorId: UserId;
+   authorUsername: text;
+   content: text;
+   createdAt: Timestamp;
+   id: CommentId;
+   postId: PostId;
+ };
+service : {
+  _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
+  _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+  _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+   (_ImmutableObjectStorageCreateCertificateResult);
+  _immutableObjectStorageRefillCashier: (refillInformation:
+   opt _ImmutableObjectStorageRefillInformation) ->
+   (_ImmutableObjectStorageRefillResult);
+  _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControl: () -> ();
+  addComment: (postId: PostId, content: text) -> (CommentId);
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  createPost: (caption: text, mediaId: ExternalBlob, mediaType: MediaType) ->
+   (PostId);
+  createUserProfile: (username: text, displayName: text, bio: text) -> (bool);
+  followUser: (targetId: UserId) -> (bool);
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getComments: (postId: PostId) -> (vec Comment) query;
+  getConversations: () -> (vec Conversation) query;
+  getFollowers: (userId: UserId) -> (vec UserProfile) query;
+  getFollowing: (userId: UserId) -> (vec UserProfile) query;
+  getMessages: (conversationId: ConversationId) -> (vec Message) query;
+  getPost: (postId: PostId) -> (opt Post) query;
+  getPosts: (offset: nat, limit: nat) -> (PaginationResult) query;
+  getPostsByUser: (userId: UserId) -> (vec Post) query;
+  getUserProfile: (userId: UserId) -> (opt UserProfile) query;
+  isCallerAdmin: () -> (bool) query;
+  isFollowing: (targetId: UserId) -> (bool) query;
+  isLiked: (postId: PostId) -> (bool) query;
+  likePost: (postId: PostId) -> (bool);
+  saveCallerUserProfile: (displayName: text, bio: text, avatarMediaId:
+   opt ExternalBlob) -> ();
+  searchUsers: (searchTerm: text) -> (vec UserProfile) query;
+  sendMessage: (recipientId: UserId, content: text) -> (MessageId);
+  unfollowUser: (targetId: UserId) -> (bool);
+  unlikePost: (postId: PostId) -> (bool);
+  updateUserProfile: (displayName: text, bio: text, avatarMediaId:
+   opt ExternalBlob) -> (bool);
+}

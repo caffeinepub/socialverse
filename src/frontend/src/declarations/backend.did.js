@@ -8,107 +8,296 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+export const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
   'method' : IDL.Text,
   'blob_hash' : IDL.Text,
 });
-export const _CaffeineStorageRefillInformation = IDL.Record({
+export const _ImmutableObjectStorageRefillInformation = IDL.Record({
   'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
 });
-export const _CaffeineStorageRefillResult = IDL.Record({
+export const _ImmutableObjectStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const PostId = IDL.Text;
+export const CommentId = IDL.Text;
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const ExternalBlob = IDL.Vec(IDL.Nat8);
+export const MediaType = IDL.Variant({
+  'video' : IDL.Null,
+  'photo' : IDL.Null,
+});
+export const UserId = IDL.Principal;
+export const Timestamp = IDL.Int;
+export const UserProfile = IDL.Record({
+  'id' : UserId,
+  'bio' : IDL.Text,
+  'postCount' : IDL.Nat,
+  'username' : IDL.Text,
+  'displayName' : IDL.Text,
+  'createdAt' : Timestamp,
+  'followerCount' : IDL.Nat,
+  'followingCount' : IDL.Nat,
+  'avatarMediaId' : IDL.Opt(ExternalBlob),
+});
+export const Comment = IDL.Record({
+  'id' : CommentId,
+  'authorUsername' : IDL.Text,
+  'content' : IDL.Text,
+  'authorId' : UserId,
+  'createdAt' : Timestamp,
+  'postId' : PostId,
+});
+export const ConversationId = IDL.Text;
+export const Conversation = IDL.Record({
+  'id' : ConversationId,
+  'participants' : IDL.Vec(UserId),
+  'lastMessageAt' : Timestamp,
+  'lastMessage' : IDL.Opt(IDL.Text),
+  'unreadCount' : IDL.Nat,
+});
+export const MessageId = IDL.Text;
+export const Message = IDL.Record({
+  'id' : MessageId,
+  'content' : IDL.Text,
+  'createdAt' : Timestamp,
+  'senderUsername' : IDL.Text,
+  'conversationId' : ConversationId,
+  'senderId' : UserId,
+});
+export const Post = IDL.Record({
+  'id' : PostId,
+  'authorUsername' : IDL.Text,
+  'likeCount' : IDL.Nat,
+  'authorId' : UserId,
+  'createdAt' : Timestamp,
+  'caption' : IDL.Text,
+  'commentCount' : IDL.Nat,
+  'mediaType' : MediaType,
+  'mediaId' : ExternalBlob,
+});
+export const PaginationResult = IDL.Record({
+  'nextOffset' : IDL.Nat,
+  'hasMore' : IDL.Bool,
+  'items' : IDL.Vec(Post),
+});
 
 export const idlService = IDL.Service({
-  '_caffeineStorageBlobIsLive' : IDL.Func(
-      [IDL.Vec(IDL.Nat8)],
-      [IDL.Bool],
+  '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [IDL.Vec(IDL.Bool)],
       ['query'],
     ),
-  '_caffeineStorageBlobsToDelete' : IDL.Func(
+  '_immutableObjectStorageBlobsToDelete' : IDL.Func(
       [],
       [IDL.Vec(IDL.Vec(IDL.Nat8))],
       ['query'],
     ),
-  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+  '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
       [IDL.Vec(IDL.Vec(IDL.Nat8))],
       [],
       [],
     ),
-  '_caffeineStorageCreateCertificate' : IDL.Func(
+  '_immutableObjectStorageCreateCertificate' : IDL.Func(
       [IDL.Text],
-      [_CaffeineStorageCreateCertificateResult],
+      [_ImmutableObjectStorageCreateCertificateResult],
       [],
     ),
-  '_caffeineStorageRefillCashier' : IDL.Func(
-      [IDL.Opt(_CaffeineStorageRefillInformation)],
-      [_CaffeineStorageRefillResult],
+  '_immutableObjectStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+      [_ImmutableObjectStorageRefillResult],
       [],
     ),
-  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+  '_initializeAccessControl' : IDL.Func([], [], []),
+  'addComment' : IDL.Func([PostId, IDL.Text], [CommentId], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'createPost' : IDL.Func([IDL.Text, ExternalBlob, MediaType], [PostId], []),
+  'createUserProfile' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Bool],
+      [],
+    ),
+  'followUser' : IDL.Func([UserId], [IDL.Bool], []),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getComments' : IDL.Func([PostId], [IDL.Vec(Comment)], ['query']),
+  'getConversations' : IDL.Func([], [IDL.Vec(Conversation)], ['query']),
+  'getFollowers' : IDL.Func([UserId], [IDL.Vec(UserProfile)], ['query']),
+  'getFollowing' : IDL.Func([UserId], [IDL.Vec(UserProfile)], ['query']),
+  'getMessages' : IDL.Func([ConversationId], [IDL.Vec(Message)], ['query']),
+  'getPost' : IDL.Func([PostId], [IDL.Opt(Post)], ['query']),
+  'getPosts' : IDL.Func([IDL.Nat, IDL.Nat], [PaginationResult], ['query']),
+  'getPostsByUser' : IDL.Func([UserId], [IDL.Vec(Post)], ['query']),
+  'getUserProfile' : IDL.Func([UserId], [IDL.Opt(UserProfile)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isFollowing' : IDL.Func([UserId], [IDL.Bool], ['query']),
+  'isLiked' : IDL.Func([PostId], [IDL.Bool], ['query']),
+  'likePost' : IDL.Func([PostId], [IDL.Bool], []),
+  'saveCallerUserProfile' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+      [],
+      [],
+    ),
+  'searchUsers' : IDL.Func([IDL.Text], [IDL.Vec(UserProfile)], ['query']),
+  'sendMessage' : IDL.Func([UserId, IDL.Text], [MessageId], []),
+  'unfollowUser' : IDL.Func([UserId], [IDL.Bool], []),
+  'unlikePost' : IDL.Func([PostId], [IDL.Bool], []),
+  'updateUserProfile' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+      [IDL.Bool],
+      [],
+    ),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
     'method' : IDL.Text,
     'blob_hash' : IDL.Text,
   });
-  const _CaffeineStorageRefillInformation = IDL.Record({
+  const _ImmutableObjectStorageRefillInformation = IDL.Record({
     'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
   });
-  const _CaffeineStorageRefillResult = IDL.Record({
+  const _ImmutableObjectStorageRefillResult = IDL.Record({
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const PostId = IDL.Text;
+  const CommentId = IDL.Text;
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const ExternalBlob = IDL.Vec(IDL.Nat8);
+  const MediaType = IDL.Variant({ 'video' : IDL.Null, 'photo' : IDL.Null });
+  const UserId = IDL.Principal;
+  const Timestamp = IDL.Int;
+  const UserProfile = IDL.Record({
+    'id' : UserId,
+    'bio' : IDL.Text,
+    'postCount' : IDL.Nat,
+    'username' : IDL.Text,
+    'displayName' : IDL.Text,
+    'createdAt' : Timestamp,
+    'followerCount' : IDL.Nat,
+    'followingCount' : IDL.Nat,
+    'avatarMediaId' : IDL.Opt(ExternalBlob),
+  });
+  const Comment = IDL.Record({
+    'id' : CommentId,
+    'authorUsername' : IDL.Text,
+    'content' : IDL.Text,
+    'authorId' : UserId,
+    'createdAt' : Timestamp,
+    'postId' : PostId,
+  });
+  const ConversationId = IDL.Text;
+  const Conversation = IDL.Record({
+    'id' : ConversationId,
+    'participants' : IDL.Vec(UserId),
+    'lastMessageAt' : Timestamp,
+    'lastMessage' : IDL.Opt(IDL.Text),
+    'unreadCount' : IDL.Nat,
+  });
+  const MessageId = IDL.Text;
+  const Message = IDL.Record({
+    'id' : MessageId,
+    'content' : IDL.Text,
+    'createdAt' : Timestamp,
+    'senderUsername' : IDL.Text,
+    'conversationId' : ConversationId,
+    'senderId' : UserId,
+  });
+  const Post = IDL.Record({
+    'id' : PostId,
+    'authorUsername' : IDL.Text,
+    'likeCount' : IDL.Nat,
+    'authorId' : UserId,
+    'createdAt' : Timestamp,
+    'caption' : IDL.Text,
+    'commentCount' : IDL.Nat,
+    'mediaType' : MediaType,
+    'mediaId' : ExternalBlob,
+  });
+  const PaginationResult = IDL.Record({
+    'nextOffset' : IDL.Nat,
+    'hasMore' : IDL.Bool,
+    'items' : IDL.Vec(Post),
+  });
   
   return IDL.Service({
-    '_caffeineStorageBlobIsLive' : IDL.Func(
-        [IDL.Vec(IDL.Nat8)],
-        [IDL.Bool],
+    '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [IDL.Vec(IDL.Bool)],
         ['query'],
       ),
-    '_caffeineStorageBlobsToDelete' : IDL.Func(
+    '_immutableObjectStorageBlobsToDelete' : IDL.Func(
         [],
         [IDL.Vec(IDL.Vec(IDL.Nat8))],
         ['query'],
       ),
-    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+    '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
         [IDL.Vec(IDL.Vec(IDL.Nat8))],
         [],
         [],
       ),
-    '_caffeineStorageCreateCertificate' : IDL.Func(
+    '_immutableObjectStorageCreateCertificate' : IDL.Func(
         [IDL.Text],
-        [_CaffeineStorageCreateCertificateResult],
+        [_ImmutableObjectStorageCreateCertificateResult],
         [],
       ),
-    '_caffeineStorageRefillCashier' : IDL.Func(
-        [IDL.Opt(_CaffeineStorageRefillInformation)],
-        [_CaffeineStorageRefillResult],
+    '_immutableObjectStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+        [_ImmutableObjectStorageRefillResult],
         [],
       ),
-    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_initializeAccessControl' : IDL.Func([], [], []),
+    'addComment' : IDL.Func([PostId, IDL.Text], [CommentId], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'createPost' : IDL.Func([IDL.Text, ExternalBlob, MediaType], [PostId], []),
+    'createUserProfile' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Bool],
+        [],
+      ),
+    'followUser' : IDL.Func([UserId], [IDL.Bool], []),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getComments' : IDL.Func([PostId], [IDL.Vec(Comment)], ['query']),
+    'getConversations' : IDL.Func([], [IDL.Vec(Conversation)], ['query']),
+    'getFollowers' : IDL.Func([UserId], [IDL.Vec(UserProfile)], ['query']),
+    'getFollowing' : IDL.Func([UserId], [IDL.Vec(UserProfile)], ['query']),
+    'getMessages' : IDL.Func([ConversationId], [IDL.Vec(Message)], ['query']),
+    'getPost' : IDL.Func([PostId], [IDL.Opt(Post)], ['query']),
+    'getPosts' : IDL.Func([IDL.Nat, IDL.Nat], [PaginationResult], ['query']),
+    'getPostsByUser' : IDL.Func([UserId], [IDL.Vec(Post)], ['query']),
+    'getUserProfile' : IDL.Func([UserId], [IDL.Opt(UserProfile)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isFollowing' : IDL.Func([UserId], [IDL.Bool], ['query']),
+    'isLiked' : IDL.Func([PostId], [IDL.Bool], ['query']),
+    'likePost' : IDL.Func([PostId], [IDL.Bool], []),
+    'saveCallerUserProfile' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+        [],
+        [],
+      ),
+    'searchUsers' : IDL.Func([IDL.Text], [IDL.Vec(UserProfile)], ['query']),
+    'sendMessage' : IDL.Func([UserId, IDL.Text], [MessageId], []),
+    'unfollowUser' : IDL.Func([UserId], [IDL.Bool], []),
+    'unlikePost' : IDL.Func([PostId], [IDL.Bool], []),
+    'updateUserProfile' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+        [IDL.Bool],
+        [],
+      ),
   });
 };
 

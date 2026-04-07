@@ -1,41 +1,51 @@
-import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import Set "mo:core/Set";
-import Text "mo:core/Text";
-import Blob "mo:core/Blob";
-import Iter "mo:core/Iter";
-import Nat "mo:core/Nat";
-import Time "mo:core/Time";
-import Order "mo:core/Order";
 import List "mo:core/List";
-import Runtime "mo:core/Runtime";
-import AccessControl "authorization/access-control";
-import MixinAuthorization "authorization/MixinAuthorization";
-import Storage "blob-storage/Storage";
-import MixinStorage "blob-storage/Mixin";
+import AccessControl "mo:caffeineai-authorization/access-control";
+import MixinAuthorization "mo:caffeineai-authorization/MixinAuthorization";
+import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
+import Common "types/common";
+import SocialTypes "types/social";
+import MessagingTypes "types/messaging";
+import SocialMixin "mixins/social-api";
+import MessagingMixin "mixins/messaging-api";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
-  include MixinStorage();
+  // --- Infrastructure ---
+  include MixinObjectStorage();
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // Types
-  public type MediaType = {
-    #image;
-    #video;
-  };
+  // --- Social state ---
+  let profiles = Map.empty<Common.UserId, SocialTypes.UserProfile>();
+  let usernames = Map.empty<Text, Common.UserId>();
+  let posts = Map.empty<Common.PostId, SocialTypes.Post>();
+  let comments = Map.empty<Common.PostId, List.List<SocialTypes.Comment>>();
+  let likes = Map.empty<Common.PostId, Set.Set<Common.UserId>>();
+  let follows = Map.empty<Common.UserId, Set.Set<Common.UserId>>();
+  let followers = Map.empty<Common.UserId, Set.Set<Common.UserId>>();
 
-  public type NotificationType = {
-    #like;
-    #comment;
-    #follow;
-    #message;
-  };
+  include SocialMixin(
+    accessControlState,
+    profiles,
+    usernames,
+    posts,
+    comments,
+    likes,
+    follows,
+    followers,
+  );
 
-  // State
-  var nextCatalogItemId = 0;
-  var nextPostId = 0;
-  var nextStoryId = 0;
-  var nextMessageId = 0;
-  var nextNotificationId = 0;
+  // --- Messaging state ---
+  let conversations = Map.empty<Common.ConversationId, MessagingTypes.Conversation>();
+  let messages = Map.empty<Common.ConversationId, List.List<MessagingTypes.Message>>();
+
+  include MessagingMixin(
+    accessControlState,
+    profiles,
+    conversations,
+    messages,
+  );
 };

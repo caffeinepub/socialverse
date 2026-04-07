@@ -1,3 +1,4 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bookmark,
   ChevronDown,
@@ -8,88 +9,9 @@ import {
   Music,
   Share2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-
-const MOCK_REELS = [
-  {
-    id: 1,
-    image: "https://picsum.photos/seed/reel1/400/700",
-    creator: {
-      name: "Leo Martinez",
-      avatar: "https://picsum.photos/seed/user1/60/60",
-    },
-    caption: "Epic mountain sunrise \uD83C\uDFD4\uFE0F 6000m above sea level",
-    music: "Altitude - Arctic Monkeys",
-    likes: 18420,
-    comments: 934,
-    views: "2.1M",
-  },
-  {
-    id: 2,
-    image: "https://picsum.photos/seed/reel2/400/700",
-    creator: {
-      name: "Sarah Kim",
-      avatar: "https://picsum.photos/seed/user2/60/60",
-    },
-    caption: "Underwater world is absolutely magical \uD83C\uDF0A #scuba",
-    music: "Ocean Eyes - Billie Eilish",
-    likes: 24810,
-    comments: 1204,
-    views: "3.4M",
-  },
-  {
-    id: 3,
-    image: "https://picsum.photos/seed/reel3/400/700",
-    creator: {
-      name: "Julia Arts",
-      avatar: "https://picsum.photos/seed/user3/60/60",
-    },
-    caption: "Watch me paint a whole galaxy in 60 seconds \uD83C\uDFA8\u2728",
-    music: "Starboy - The Weeknd",
-    likes: 31042,
-    comments: 2103,
-    views: "4.7M",
-  },
-  {
-    id: 4,
-    image: "https://picsum.photos/seed/reel4/400/700",
-    creator: {
-      name: "Max Chen",
-      avatar: "https://picsum.photos/seed/user4/60/60",
-    },
-    caption: "Building a mechanical keyboard from scratch \uD83D\uDCBB\u26A1",
-    music: "Hacker - Death Grips",
-    likes: 9821,
-    comments: 567,
-    views: "1.2M",
-  },
-  {
-    id: 5,
-    image: "https://picsum.photos/seed/reel5/400/700",
-    creator: {
-      name: "Priya Sharma",
-      avatar: "https://picsum.photos/seed/user5/60/60",
-    },
-    caption: "Diwali lights from above - drone view \uD83E\uDE94\u2728",
-    music: "Rang De Basanti - A.R. Rahman",
-    likes: 52300,
-    comments: 4210,
-    views: "8.9M",
-  },
-  {
-    id: 6,
-    image: "https://picsum.photos/seed/reel6/400/700",
-    creator: {
-      name: "Alex Nova",
-      avatar: "https://picsum.photos/seed/user6/60/60",
-    },
-    caption: "Milky Way from the Atacama Desert \uD83C\uDF0C No filters!",
-    music: "Cosmic Love - Florence",
-    likes: 41200,
-    comments: 3100,
-    views: "6.2M",
-  },
-];
+import { useEffect, useRef, useState } from "react";
+import { useBackend } from "../hooks/useBackend";
+import { MediaType } from "../types";
 
 const handleDownload = async (url: string, filename: string) => {
   try {
@@ -107,29 +29,178 @@ const handleDownload = async (url: string, filename: string) => {
 };
 
 export default function ReelsPage() {
+  const { backend, isFetching } = useBackend();
+  const queryClient = useQueryClient();
   const [currentReel, setCurrentReel] = useState(0);
-  const [likedReels, setLikedReels] = useState<Set<number>>(new Set());
-  const [savedReels, setSavedReels] = useState<Set<number>>(new Set());
+  const [savedReels, setSavedReels] = useState<Set<string>>(new Set());
+  const [localLikes, setLocalLikes] = useState<
+    Map<string, { liked: boolean; delta: number }>
+  >(new Map());
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+
+  const { data: postsResult, isLoading } = useQuery({
+    queryKey: ["posts"],
+    queryFn: async () => {
+      if (!backend) return { items: [], nextOffset: BigInt(0), hasMore: false };
+      return backend.getPosts(BigInt(0), BigInt(50));
+    },
+    enabled: !!backend && !isFetching,
+  });
+
+  const reels = (postsResult?.items ?? []).filter(
+    (p) => p.mediaType === MediaType.video,
+  );
+
+  const likeStatuses = useQuery({
+    queryKey: ["reelLikeStatuses", reels.map((r) => r.id)],
+    queryFn: async () => {
+      if (!backend || reels.length === 0) return {};
+      const results = await Promise.all(
+        reels.map(async (r) => ({
+          id: r.id,
+          liked: await backend.isLiked(r.id),
+        })),
+      );
+      const map: Record<string, boolean> = {};
+      for (const r of results) map[r.id] = r.liked;
+      return map;
+    },
+    enabled: !!backend && !isFetching && reels.length > 0,
+  });
+
+  const likePostMutation = useMutation({
+    mutationFn: async ({
+      postId,
+      isCurrentlyLiked,
+    }: { postId: string; isCurrentlyLiked: boolean }) => {
+      if (!backend) throw new Error("No backend");
+      return isCurrentlyLiked
+        ? backend.unlikePost(postId)
+        : backend.likePost(postId);
+    },
+    onSuccess: (_data, { postId }) => {
+      queryClient.invalidateQueries({ queryKey: ["reelLikeStatuses"] });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      setLocalLikes((prev) => {
+        const next = new Map(prev);
+        next.delete(postId);
+        return next;
+      });
+    },
+  });
+
+  const handleLike = (postId: string) => {
+    const serverLiked = likeStatuses.data?.[postId] ?? false;
+    const localState = localLikes.get(postId);
+    const effectiveLiked = localState ? localState.liked : serverLiked;
+    setLocalLikes((prev) => {
+      const next = new Map(prev);
+      next.set(postId, {
+        liked: !effectiveLiked,
+        delta: effectiveLiked ? -1 : 1,
+      });
+      return next;
+    });
+    likePostMutation.mutate({ postId, isCurrentlyLiked: effectiveLiked });
+  };
 
   const handleWheel = (e: React.WheelEvent) => {
     if (e.deltaY > 0) {
-      setCurrentReel((prev) => Math.min(prev + 1, MOCK_REELS.length - 1));
+      setCurrentReel((prev) => Math.min(prev + 1, reels.length - 1));
     } else {
       setCurrentReel((prev) => Math.max(prev - 1, 0));
     }
   };
 
-  const reel = MOCK_REELS[currentReel];
-
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown")
-        setCurrentReel((p) => Math.min(p + 1, MOCK_REELS.length - 1));
+        setCurrentReel((p) => Math.min(p + 1, Math.max(0, reels.length - 1)));
       if (e.key === "ArrowUp") setCurrentReel((p) => Math.max(p - 1, 0));
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, []);
+  }, [reels.length]);
+
+  // Auto-play the current video, pause others
+  useEffect(() => {
+    videoRefs.current.forEach((videoEl, postId) => {
+      const reelIdx = reels.findIndex((r) => r.id === postId);
+      if (reelIdx === currentReel) {
+        videoEl.play().catch(() => {});
+      } else {
+        videoEl.pause();
+      }
+    });
+  }, [currentReel, reels]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div
+        className="relative h-screen w-full flex items-center justify-center"
+        style={{ backgroundColor: "#000" }}
+        data-ocid="reels.page"
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div
+            className="w-16 h-16 rounded-full animate-spin"
+            style={{
+              border: "3px solid rgba(122,92,255,0.3)",
+              borderTopColor: "#7A5CFF",
+            }}
+          />
+          <span className="text-white/50 text-sm">Loading reels...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!isLoading && reels.length === 0) {
+    return (
+      <div
+        className="relative h-screen w-full flex items-center justify-center"
+        style={{ backgroundColor: "#000" }}
+        data-ocid="reels.page"
+      >
+        <div className="flex flex-col items-center gap-4 px-8 text-center">
+          <div
+            className="w-24 h-24 rounded-full flex items-center justify-center text-4xl"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(122,92,255,0.2), rgba(255,77,166,0.2))",
+            }}
+          >
+            🎬
+          </div>
+          <h3 className="text-white font-bold text-xl">No Reels Yet</h3>
+          <p className="text-white/50 text-sm leading-relaxed">
+            Be the first to upload a video reel! Share your moments with the
+            world.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const reel = reels[currentReel];
+  if (!reel) return null;
+
+  const mediaUrl = reel.mediaId.getDirectURL();
+  const localState = localLikes.get(reel.id);
+  const serverLiked = likeStatuses.data?.[reel.id] ?? false;
+  const isLiked = localState ? localState.liked : serverLiked;
+  const baseLikeCount = Number(reel.likeCount);
+  const displayLikeCount = localState
+    ? baseLikeCount + localState.delta
+    : baseLikeCount;
+
+  const formatCount = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return n.toString();
+  };
 
   return (
     <div
@@ -138,13 +209,23 @@ export default function ReelsPage() {
       onWheel={handleWheel}
       data-ocid="reels.page"
     >
-      {/* Reel image */}
-      <img
+      {/* Reel video */}
+      <video
         key={reel.id}
-        src={reel.image}
-        alt="Reel"
+        ref={(el) => {
+          if (el) {
+            videoRefs.current.set(reel.id, el);
+          } else {
+            videoRefs.current.delete(reel.id);
+          }
+        }}
+        src={mediaUrl}
         className="absolute inset-0 w-full h-full object-cover"
         style={{ transition: "opacity 0.3s ease" }}
+        loop
+        muted
+        playsInline
+        autoPlay
       />
 
       {/* Gradient overlay */}
@@ -156,13 +237,13 @@ export default function ReelsPage() {
         }}
       />
 
-      {/* Top overlay: view count */}
+      {/* Top overlay */}
       <div className="absolute top-14 left-0 right-0 flex justify-center z-20">
         <div
           className="px-3 py-1 rounded-full text-white/70 text-xs"
           style={{ background: "rgba(0,0,0,0.5)" }}
         >
-          {reel.views} views
+          🎬 Reel {currentReel + 1} / {reels.length}
         </div>
       </div>
 
@@ -184,13 +265,13 @@ export default function ReelsPage() {
         <button
           type="button"
           onClick={() =>
-            setCurrentReel((p) => Math.min(p + 1, MOCK_REELS.length - 1))
+            setCurrentReel((p) => Math.min(p + 1, reels.length - 1))
           }
-          disabled={currentReel === MOCK_REELS.length - 1}
+          disabled={currentReel === reels.length - 1}
           className="w-10 h-10 rounded-full flex items-center justify-center transition-opacity"
           style={{
             background: "rgba(255,255,255,0.15)",
-            opacity: currentReel === MOCK_REELS.length - 1 ? 0.3 : 1,
+            opacity: currentReel === reels.length - 1 ? 0.3 : 1,
           }}
           data-ocid="reels.next.button"
         >
@@ -202,14 +283,7 @@ export default function ReelsPage() {
       <div className="absolute right-4 bottom-36 z-20 flex flex-col gap-5 items-center">
         <button
           type="button"
-          onClick={() =>
-            setLikedReels((prev) => {
-              const next = new Set(prev);
-              if (next.has(reel.id)) next.delete(reel.id);
-              else next.add(reel.id);
-              return next;
-            })
-          }
+          onClick={() => handleLike(reel.id)}
           className="flex flex-col items-center gap-1"
           data-ocid="reels.like.button"
         >
@@ -220,16 +294,13 @@ export default function ReelsPage() {
             <Heart
               className="w-6 h-6"
               style={{
-                color: likedReels.has(reel.id) ? "#FF4DA6" : "white",
-                fill: likedReels.has(reel.id) ? "#FF4DA6" : "transparent",
+                color: isLiked ? "#FF4DA6" : "white",
+                fill: isLiked ? "#FF4DA6" : "transparent",
               }}
             />
           </div>
           <span className="text-white text-xs">
-            {((reel.likes + (likedReels.has(reel.id) ? 1 : 0)) / 1000).toFixed(
-              1,
-            )}
-            K
+            {formatCount(displayLikeCount)}
           </span>
         </button>
 
@@ -245,7 +316,7 @@ export default function ReelsPage() {
             <MessageCircle className="w-6 h-6 text-white" />
           </div>
           <span className="text-white text-xs">
-            {(reel.comments / 1000).toFixed(1)}K
+            {formatCount(Number(reel.commentCount))}
           </span>
         </button>
 
@@ -293,7 +364,7 @@ export default function ReelsPage() {
 
         <button
           type="button"
-          onClick={() => handleDownload(reel.image, `reel-${reel.id}.jpg`)}
+          onClick={() => handleDownload(mediaUrl, `reel-${reel.id}.mp4`)}
           className="flex flex-col items-center gap-1"
           data-ocid="reels.download.button"
         >
@@ -303,22 +374,25 @@ export default function ReelsPage() {
           >
             <Download className="w-6 h-6 text-white" />
           </div>
-          <span className="text-white text-xs">Save</span>
+          <span className="text-white text-xs">Download</span>
         </button>
       </div>
 
       {/* Bottom info */}
       <div className="absolute bottom-24 left-4 right-20 z-20">
         <div className="flex items-center gap-3 mb-2">
-          <img
-            src={reel.creator.avatar}
-            alt={reel.creator.name}
-            className="w-10 h-10 rounded-full object-cover"
-            style={{ border: "2px solid white" }}
-          />
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+            style={{
+              background: "linear-gradient(135deg, #7A5CFF, #FF4DA6)",
+              border: "2px solid white",
+            }}
+          >
+            {reel.authorUsername.charAt(0).toUpperCase()}
+          </div>
           <div>
             <p className="text-white font-semibold text-sm">
-              {reel.creator.name}
+              {reel.authorUsername}
             </p>
             <button
               type="button"
@@ -337,13 +411,13 @@ export default function ReelsPage() {
           >
             <Music className="w-3 h-3 text-white" />
           </div>
-          <p className="text-white/70 text-xs truncate">{reel.music}</p>
+          <p className="text-white/70 text-xs truncate">SocialVerse Original</p>
         </div>
       </div>
 
       {/* Reel indicator dots */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5">
-        {MOCK_REELS.map((reelItem, i) => (
+        {reels.map((reelItem, i) => (
           <button
             type="button"
             key={reelItem.id}
